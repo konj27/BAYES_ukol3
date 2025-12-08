@@ -7,16 +7,18 @@ library(glue)
 library(rstanarm)
 library(broom.mixed)
 library(tidybayes)
-
+library(loo)
 # ukol 1 Honza Petr
 
 # ukol 2 Jenda Anička
 # 11.10 ---------------------------------------------------
 penguin_data <- penguins_bayes %>% 
-  filter(species %in% c("Adelie", "Gentoo"))
+  filter(species %in% c("Adelie", "Gentoo")) %>% na.omit()
 plot(x = penguin_data$body_mass_g, y = penguin_data$flipper_length_mm)
 ggplot(data = penguin_data)+
-  geom_point(mapping = aes(x=body_mass_g, y=flipper_length_mm,color = species))
+  geom_point(mapping = aes(x=body_mass_g, y=flipper_length_mm,color = species))+
+  ylab("flipper length (mm)")+
+  xlab("body mass (g)")
 
 summarize_data <- penguin_data %>% 
   reframe(flipper_length_mm, body_mass_g, species)%>%
@@ -92,7 +94,80 @@ penguin_model_2 = stan_glm(
   chains = 4, iter = 5000*2, seed = 84735)
 
 posterior_interval(penguin_model_2, prob = 0.95)
+# 11.13 ------------------------------------------------------------
+penguin_model_3 <- stan_glm(
+  body_mass_g ~ flipper_length_mm,
+  data = penguin_data_2,
+  family = gaussian,
+  prior_intercept = normal(5000, 350),
+  prior = normal(5000, 350, autoscale = TRUE), 
+  prior_aux = exponential(1, autoscale = TRUE),
+  chains = 4, iter = 5000*2, seed = 84735
+)
+pp_check(penguin_model_3)
 
+penguin_model_4 <- stan_glm(
+  body_mass_g ~ species,
+  data = penguin_data,
+  family = gaussian,
+  prior_intercept = normal(5000, 350),
+  prior = normal(5000, 350, autoscale = TRUE), 
+  prior_aux = exponential(1, autoscale = TRUE),
+  chains = 4, iter = 5000*2, seed = 84735
+)
+pp_check(penguin_model_4)
+
+pp_check(penguin_model, plotfun = "dens_overlay", nreps = 50)
+pp_check(penguin_model_2, plotfun = "dens_overlay", nreps = 50)
+pp_check(penguin_model_3, plotfun = "dens_overlay", nreps = 50)
+pp_check(penguin_model_4, plotfun = "dens_overlay", nreps = 50)
+penguins_complete <- penguins_bayes %>% 
+  select(flipper_length_mm, body_mass_g, species, 
+         bill_length_mm, bill_depth_mm) %>% 
+  na.omit() 
+
+cv_1 <- prediction_summary_cv(
+  model = penguin_model,
+  data  = penguins_complete,
+  k     = 10
+)
+
+cv_2 <- prediction_summary_cv(
+  model = penguin_model_2,
+  data  = penguins_complete,
+  k     = 10
+)
+
+cv_3 <- prediction_summary_cv(
+  model = penguin_model_3,
+  data  = penguins_complete,
+  k     = 10
+)
+
+cv_4 <- prediction_summary_cv(
+  model = penguin_model_4,
+  data  = penguins_complete,
+  k     = 10
+)
+
+cv_1
+cv_2
+cv_3
+cv_4
+
+
+loo_1 <- loo(penguin_model)
+loo_2 <- loo(penguin_model_2)
+loo_3 <- loo(penguin_model_3)
+loo_4 <- loo(penguin_model_4)
+
+loo_1$estimates["elpd_loo", ]
+loo_2$estimates["elpd_loo", ]
+loo_3$estimates["elpd_loo", ]
+loo_4$estimates["elpd_loo", ]
+
+# Direct comparison
+loo_compare(loo_1, loo_2, loo_3, loo_4)
 # ukol 3 Honza Petr
 
 # ukol 4 Jenda Anička

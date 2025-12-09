@@ -168,6 +168,68 @@ loo_4$estimates["elpd_loo", ]
 
 # Direct comparison
 loo_compare(loo_1, loo_2, loo_3, loo_4)
+
+# 11.14 ------------------------------------------------------------
+
+penguins_numeric <- penguins_bayes %>% 
+  select(flipper_length_mm, body_mass_g, 
+         bill_length_mm, bill_depth_mm) %>% 
+  na.omit() 
+cor(penguins_numeric)
+ggcorrplot(cor(penguins_numeric))
+
+ggplot(data = penguin_data)+
+  geom_point(mapping = aes(x=bill_length_mm, y=body_mass_g,color = sex))+
+  ylab("body mass (g)")+
+  xlab("bill length (mm)")
+
+ggplot(data = penguin_data)+
+  geom_point(mapping = aes(x=bill_length_mm, y=body_mass_g,color = island))+
+  ylab("body mass (g)")+
+  xlab("bill length (mm)")
+
+ggplot(data = penguin_data)+
+  geom_point(mapping = aes(x=bill_length_mm, y=body_mass_g,color = species))+
+  ylab("body mass (g)")+
+  xlab("bill length (mm)")
+
+penguin_our_model_1 = stan_glm(
+  bill_length_mm ~ flipper_length_mm + body_mass_g+ island,
+  data = penguin_data,
+  family = gaussian,
+  prior_intercept = normal(40, 15),
+  prior = normal(0, 2.5, autoscale = TRUE), 
+  prior_aux = exponential(1, autoscale = TRUE),
+  chains = 4, iter = 5000*2, seed = 84735)
+
+prior_summary(penguin_our_model_1)
+mcmc_trace(penguin_our_model_1)
+mcmc_dens_overlay(penguin_our_model_1)
+mcmc_acf(penguin_our_model_1)
+pp_check(penguin_our_model_1)
+
+penguin_our_model_2 = stan_glm(
+  bill_length_mm ~ flipper_length_mm + body_mass_g + sex,
+  data = penguin_data,
+  family = gaussian,
+  prior_intercept = normal(40, 15),
+  prior = normal(0, 2.5, autoscale = TRUE), 
+  prior_aux = exponential(1, autoscale = TRUE),
+  chains = 4, iter = 5000*2, seed = 84735)
+
+pp_check(penguin_our_model_2)
+
+penguin_our_model_3 = stan_glm(
+  bill_length_mm ~ flipper_length_mm + body_mass_g * island,
+  data = penguin_data,
+  family = gaussian,
+  prior_intercept = normal(40, 15),
+  prior = normal(0, 2.5, autoscale = TRUE), 
+  prior_aux = exponential(1, autoscale = TRUE),
+  chains = 4, iter = 5000*2, seed = 84735)
+
+pp_check(penguin_our_model_3)
+
 # ukol 3 Honza Petr
 
 # ukol 4 Jenda Anička

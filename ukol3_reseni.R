@@ -8,6 +8,7 @@ library(rstanarm)
 library(broom.mixed)
 library(tidybayes)
 library(loo)
+library(e1071)
 # ukol 1 Honza Petr
 
 # ukol 2 Jenda Anička
@@ -171,31 +172,34 @@ loo_compare(loo_1, loo_2, loo_3, loo_4)
 
 # 11.14 ------------------------------------------------------------
 
-penguins_numeric <- penguins_bayes %>% 
+penguin_our_model_data <- penguins_bayes %>% na.omit()
+
+penguins_numeric <- penguin_our_model_data %>% 
   select(flipper_length_mm, body_mass_g, 
-         bill_length_mm, bill_depth_mm) %>% 
-  na.omit() 
-cor(penguins_numeric)
-ggcorrplot(cor(penguins_numeric))
+         bill_length_mm, bill_depth_mm)
 
-ggplot(data = penguin_data)+
-  geom_point(mapping = aes(x=bill_length_mm, y=body_mass_g,color = sex))+
-  ylab("body mass (g)")+
-  xlab("bill length (mm)")
+ggcorrplot(cor(penguins_numeric)) #nahled na korelace pro numericke promenne
 
-ggplot(data = penguin_data)+
-  geom_point(mapping = aes(x=bill_length_mm, y=body_mass_g,color = island))+
-  ylab("body mass (g)")+
-  xlab("bill length (mm)")
+#par pruzkumnych grafu
+ggplot(data = penguin_our_model_data)+
+  geom_point(mapping = aes(x=flipper_length_mm, y=bill_length_mm,color = species))+
+  xlab("flipper length (mm)")+
+  ylab("bill length (mm)")
 
-ggplot(data = penguin_data)+
-  geom_point(mapping = aes(x=bill_length_mm, y=body_mass_g,color = species))+
-  ylab("body mass (g)")+
-  xlab("bill length (mm)")
+ggplot(data = penguin_our_model_data)+
+  geom_point(mapping = aes(x=flipper_length_mm, y=bill_length_mm,color = island))+
+  xlab("flipper length (mm)")+
+  ylab("bill length (mm)")
 
+ggplot(data = penguin_our_model_data)+
+  geom_point(mapping = aes(x=flipper_length_mm, y=bill_length_mm,color = sex))+
+  xlab("flipper length (mm)")+
+  ylab("bill length (mm)")
+
+#model 1 - pouze kvantitativni promenne
 penguin_our_model_1 = stan_glm(
-  bill_length_mm ~ flipper_length_mm + body_mass_g+ island,
-  data = penguin_data,
+  bill_length_mm ~ flipper_length_mm + body_mass_g,
+  data = penguin_our_model_data,
   family = gaussian,
   prior_intercept = normal(40, 15),
   prior = normal(0, 2.5, autoscale = TRUE), 
@@ -208,28 +212,187 @@ mcmc_dens_overlay(penguin_our_model_1)
 mcmc_acf(penguin_our_model_1)
 pp_check(penguin_our_model_1)
 
+#model 2 - pridani jedne dulezite kategoricke promenne
 penguin_our_model_2 = stan_glm(
-  bill_length_mm ~ flipper_length_mm + body_mass_g + sex,
-  data = penguin_data,
+  bill_length_mm ~ flipper_length_mm + body_mass_g + island,
+  data = penguin_our_model_data,
   family = gaussian,
   prior_intercept = normal(40, 15),
   prior = normal(0, 2.5, autoscale = TRUE), 
   prior_aux = exponential(1, autoscale = TRUE),
   chains = 4, iter = 5000*2, seed = 84735)
 
+prior_summary(penguin_our_model_2)
+mcmc_trace(penguin_our_model_2)
+mcmc_dens_overlay(penguin_our_model_2)
+mcmc_acf(penguin_our_model_2)
 pp_check(penguin_our_model_2)
 
+#model 3 - pridani interakcniho clenu
 penguin_our_model_3 = stan_glm(
-  bill_length_mm ~ flipper_length_mm + body_mass_g * island,
-  data = penguin_data,
+  bill_length_mm ~ body_mass_g + flipper_length_mm * species,
+  data = penguin_our_model_data,
   family = gaussian,
   prior_intercept = normal(40, 15),
   prior = normal(0, 2.5, autoscale = TRUE), 
   prior_aux = exponential(1, autoscale = TRUE),
   chains = 4, iter = 5000*2, seed = 84735)
 
+prior_summary(penguin_our_model_3)
+mcmc_trace(penguin_our_model_3)
+mcmc_dens_overlay(penguin_our_model_3)
+mcmc_acf(penguin_our_model_3)
 pp_check(penguin_our_model_3)
+
+tidy(penguin_our_model_1, effects = c("fixed", "aux"), conf.int = TRUE, conf.level = 0.80)
+tidy(penguin_our_model_2, effects = c("fixed", "aux"), conf.int = TRUE, conf.level = 0.80)
+tidy(penguin_our_model_3, effects = c("fixed", "aux"), conf.int = TRUE, conf.level = 0.80)
+
+
+#cross-variation
+cv_model1 <- prediction_summary_cv(model = penguin_our_model_1,
+                                  data  = penguin_our_model_data,
+                                  k     = 10)
+cv_model2 <- prediction_summary_cv(model = penguin_our_model_2,
+                                   data  = penguin_our_model_data,
+                                   k     = 10)
+cv_model3 <- prediction_summary_cv(model = penguin_our_model_3,
+                                   data  = penguin_our_model_data,
+                                   k     = 10)
+
+cv_model1
+cv_model2
+cv_model3
+
+loo_bill1 <- loo(penguin_our_model_1)
+loo_bill2 <- loo(penguin_our_model_2)
+loo_bill3 <- loo(penguin_our_model_3)
+
+loo_bill1$estimates["elpd_loo", ]
+loo_bill2$estimates["elpd_loo", ]
+loo_bill3$estimates["elpd_loo", ]
+
+# porovnani modelu - serazeni od nejlepsiho
+loo_compare(loo_bill1, loo_bill2, loo_bill3)
 
 # ukol 3 Honza Petr
 
 # ukol 4 Jenda Anička
+
+#priprava dat
+vaccines_data <- pulse_of_the_nation %>%
+  select(vaccines_are_safe, age, education, party, climate_change,science_is_honest,income) %>%
+  drop_na()%>%
+  mutate(
+    vaccines_are_safe = factor(vaccines_are_safe,levels = c(
+      "Strongly Agree",
+      "Somewhat Agree",
+      "Neither Agree nor Disagree",
+      "Somewhat Disagree",
+      "Strongly Disagree")),
+    education = factor(education, levels = c(
+      "Graduate degree",
+      "College degree",
+      "Some college",
+      "High school",
+      "Other")),
+    science_is_honest = factor(science_is_honest,levels = c(
+      "Strongly Agree",
+      "Somewhat Agree",
+      "Neither Agree nor Disagree",
+      "Somewhat Disagree",
+      "Strongly Disagree")),
+    party = factor(party),
+    climate_change = factor(climate_change),
+    age = as.numeric(age)
+)
+
+head(vaccines_data)
+
+
+#pruzkum dat - vizualizace
+ggplot(vaccines_data, 
+       aes(fill = education, x = vaccines_are_safe)) + 
+  geom_bar(position = "fill")
+
+ggplot(vaccines_data, 
+       aes(fill = party, x = vaccines_are_safe)) + 
+  geom_bar(position = "fill")
+
+ggplot(vaccines_data, 
+       aes(fill = climate_change, x = vaccines_are_safe)) + 
+  geom_bar(position = "fill")
+
+ggplot(vaccines_data, 
+       aes(fill = science_is_honest, x = vaccines_are_safe)) + 
+  geom_bar(position = "fill")
+
+vaccines_data %>%
+  ggplot(aes(x = age)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ vaccines_are_safe)
+
+vaccines_data %>%
+  ggplot(aes(x = income)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ vaccines_are_safe)
+
+#naivni modely
+#model1 - pouziti science_is_honest
+naive_model_1 <- naiveBayes(vaccines_are_safe ~ age + education + party + income, data = vaccines_data)
+#model2 - pouziti climate_change
+naive_model_2 <- naiveBayes(vaccines_are_safe ~ age + climate_change + science_is_honest, data = vaccines_data)
+
+#predikce
+vaccines_pred1 <- predict(naive_model_1, newdata = vaccines_data, type = "class")
+vaccines_pred2 <- predict(naive_model_2, newdata = vaccines_data, type = "class")
+
+set.seed(84735)
+
+# CV pro model 1
+cv_vaccines_1 <- naive_classification_summary_cv(
+  model = naive_model_1,
+  data  = vaccines_data,
+  y     = "vaccines_are_safe",
+  k     = 10
+)
+cv_vaccines_1$cv
+cv_vaccines_1$folds
+
+
+# CV pro model 2
+cv_vaccines_2 <- naive_classification_summary_cv(
+  model = naive_model_2,
+  data  = vaccines_data,
+  y     = "vaccines_are_safe",
+  k     = 10
+)
+cv_vaccines_2$cv
+cv_vaccines_2$folds
+
+
+#presnost obou modelu
+acc1 <- mean(vaccines_data$vaccines_are_safe == vaccines_pred1) 
+acc2 <- mean(vaccines_data$vaccines_are_safe == vaccines_pred2)
+
+acc1
+acc2
+
+#konfuzni matice model 1
+vaccines_data %>% 
+  mutate(pred1 = vaccines_pred1) %>%
+  tabyl(vaccines_are_safe,pred1) %>%
+  adorn_percentages("row")%>%
+  adorn_pct_formatting(digits = 2)%>%
+  adorn_ns()
+
+#konfuzni matice model 2
+vaccines_data %>% 
+  mutate(pred2 = vaccines_pred2) %>%
+  tabyl(vaccines_are_safe,pred2) %>%
+  adorn_percentages("row")%>%
+  adorn_pct_formatting(digits = 2)%>%
+  adorn_ns()
+
+
+

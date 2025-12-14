@@ -249,28 +249,13 @@ tidy(penguin_our_model_2, effects = c("fixed", "aux"), conf.int = TRUE, conf.lev
 tidy(penguin_our_model_3, effects = c("fixed", "aux"), conf.int = TRUE, conf.level = 0.80)
 
 
-#cross-variation
-cv_model1 <- prediction_summary_cv(model = penguin_our_model_1,
-                                  data  = penguin_our_model_data,
-                                  k     = 10)
-cv_model2 <- prediction_summary_cv(model = penguin_our_model_2,
-                                   data  = penguin_our_model_data,
-                                   k     = 10)
-cv_model3 <- prediction_summary_cv(model = penguin_our_model_3,
-                                   data  = penguin_our_model_data,
-                                   k     = 10)
-
-cv_model1
-cv_model2
-cv_model3
-
 loo_bill1 <- loo(penguin_our_model_1)
 loo_bill2 <- loo(penguin_our_model_2)
 loo_bill3 <- loo(penguin_our_model_3)
 
-loo_bill1$estimates["elpd_loo", ]
-loo_bill2$estimates["elpd_loo", ]
-loo_bill3$estimates["elpd_loo", ]
+loo_bill1$estimates[1]
+loo_bill2$estimates[1]
+loo_bill3$estimates[1]
 
 # porovnani modelu - serazeni od nejlepsiho
 loo_compare(loo_bill1, loo_bill2, loo_bill3)

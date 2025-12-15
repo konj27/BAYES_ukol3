@@ -261,6 +261,71 @@ loo_bill3$estimates[1]
 loo_compare(loo_bill1, loo_bill2, loo_bill3)
 
 # ukol 3 Honza Petr
+#AirBnB
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(bayesrules, tidyverse, rstanarm, bayesplot, broom.mixed, patchwork)
+
+set.seed(2025)
+
+data("airbnb_small")
+
+#Kontrola průměru a rozptylu (Variance >> Mean indikuje overdispersion)
+stats <- airbnb_small %>% 
+  summarize(prumer_reviews = mean(reviews), 
+            rozptyl_reviews = var(reviews))
+print(stats)
+
+#Vizualizace vztahu 
+plot_boxplot <- ggplot(airbnb_small, aes(x = room_type, y = reviews, fill = room_type)) +
+  geom_boxplot(alpha = 0.6) +
+  labs(title = "Rozdělení recenzí podle typu pokoje",
+       y = "Počet recenzí", x = "Typ pokoje") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ggsave("eda_boxplot.png", plot = plot_boxplot, width = 6, height = 4)
+
+#Model 1: Poisson, Mean = Variance => neplatí
+model_poisson <- stan_glm(
+  reviews ~ rating + district + room_type + accommodates,
+  data = airbnb_small,
+  family = poisson(link = "log"),
+  prior = normal(0, 2.5, autoscale = TRUE),
+  prior_intercept = normal(0, 2.5, autoscale = TRUE),
+  chains = 4, iter = 2000, refresh = 0, seed = 2025
+)
+
+#Model 2: Negativně Binomický, řeší overdispersion
+model_negbin <- stan_glm(
+  reviews ~ rating + district + room_type + accommodates,
+  data = airbnb_small,
+  family = neg_binomial_2(link = "log"),
+  prior = normal(0, 2.5, autoscale = TRUE),
+  prior_intercept = normal(0, 2.5, autoscale = TRUE),
+  chains = 4, iter = 2000, refresh = 0, seed = 2025
+)
+
+#Posterior Predictive Check 
+ppc_pois <- pp_check(model_poisson) + labs(title = "Poisson ", subtitle = "Model nepokrývá variabilitu")
+ppc_nb   <- pp_check(model_negbin) + labs(title = "Negativně Binomický", subtitle = "Model sedí na data")
+
+#Spojení grafů
+final_ppc <- ppc_pois / ppc_nb
+ggsave("airbnb_ppc_check.png", plot = final_ppc, width = 8, height = 8)
+
+#Porovnání pomocí Leave-One-Out Cross-Validation
+loo_poisson <- loo(model_poisson)
+loo_negbin  <- loo(model_negbin)
+
+#Vypíšeme srovnání 
+comp <- loo_compare(loo_poisson, loo_negbin)
+print(comp)
+
+#Tabulka koeficientů pro vítězný modelß
+final_results <- tidy(model_negbin, exponentiate = TRUE, conf.int = TRUE)
+print(final_results)
+
 
 # ukol 4 Jenda Anička
 

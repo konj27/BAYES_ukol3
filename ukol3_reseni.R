@@ -11,6 +11,107 @@ library(loo)
 library(e1071)
 # ukol 1 Honza Petr
 
+# Načtení knihoven
+library(bayesrules)
+library(rstanarm)
+library(tidyverse)
+library(janitor)
+
+# Načtení dat a omit pro chyběhící hodnoty
+data(penguins_bayes)
+df <- penguins_bayes %>% na.omit()
+
+# 9.16 a)
+prior_model <- stan_glm(
+  flipper_length_mm ~ bill_length_mm,
+  data = df,
+  family = gaussian,
+  prior_intercept = normal(200, 25),
+  prior = normal(0, 10),             
+  prior_aux = exponential(1, autoscale = TRUE),
+  chains = 4, iter = 10000, seed = 84735,
+  prior_PD = TRUE # vzorkovani z prioru
+)
+
+# 9.16 b)
+prior_summary(prior_model)
+
+# 9.16 c)
+df %>%
+  add_fitted_draws(prior_model, n = 100) %>%
+  ggplot(aes(x = bill_length_mm, y = flipper_length_mm)) +
+  geom_line(aes(y = .value, group = .draw), alpha = 0.2) +
+  labs(x = "Délka zobáku (mm)", y = "Délka ploutve (mm)")
+
+# 9.17 a)
+ggplot(df, aes(x = bill_length_mm, y = flipper_length_mm)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Délka zobáku (mm)", y = "Délka ploutve (mm)")
+
+# 9.18 a)
+post_model <- update(prior_model, prior_PD = FALSE)
+
+# 9.18 b)
+df %>%
+  add_fitted_draws(post_model, n = 100) %>%
+  ggplot(aes(x = bill_length_mm, y = flipper_length_mm)) +
+  geom_line(aes(y = .value, group = .draw), alpha = 0.2, color = "blue") +
+  geom_point(data = df)
+
+# 9.18 c)
+tidy(post_model, conf.int = TRUE, conf.level = 0.90)
+
+# Získání řetězců parametrů
+chains <- as.data.frame(post_model)
+
+# 9.19 a) Výpočet predikcí manuálně
+pablo_predictions <- chains %>%
+  mutate(
+    mu = `(Intercept)` + `bill_length_mm` * 51,
+    y_new = rnorm(n(), mean = mu, sd = sigma)
+  )
+
+# 9.19 b)
+ggplot(pablo_predictions) +
+  geom_density(aes(x = mu), fill = "blue", alpha = 0.5) +
+  geom_density(aes(x = y_new), fill = "orange", alpha = 0.5) +
+  labs(x = "Délka ploutve (mm)")
+
+# 9.19 c)
+quantile(pablo_predictions$y_new, probs = c(0.1, 0.9))
+
+# 9.19 e)
+predict_check <- posterior_predict(post_model, newdata = data.frame(bill_length_mm = 51))
+quantile(predict_check, probs = c(0.1, 0.9))
+
+# 9.20 b) Scatterplot
+ggplot(df, aes(x = body_mass_g, y = flipper_length_mm)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Hmotnost (g)", y = "Délka ploutve (mm)")
+
+# 9.20 d)
+model_mass <- stan_glm(
+  flipper_length_mm ~ body_mass_g,
+  data = df,
+  family = gaussian,
+  prior = normal(0.01, 0.002),
+  prior_intercept = normal(0, 100, autoscale = TRUE),
+  prior_aux = exponential(1, autoscale = TRUE),
+  chains = 4, iter = 10000, seed = 84735
+)
+
+# 9.20 e)
+model_mass %>%
+  as.data.frame() %>%
+  ggplot(aes(x = body_mass_g)) +
+  geom_density(fill = "purple", alpha = 0.6) +
+  stat_function(fun = dnorm, args = list(mean = 0.01, sd = 0.002),
+                color = "red", linetype = "dashed") +
+  labs(x = "Beta 1 (vliv hmotnosti)") +
+  xlim(0.005, 0.017)
+
 # ukol 2 Jenda Anička
 # 11.10 ---------------------------------------------------
 penguin_data <- penguins_bayes %>% 
